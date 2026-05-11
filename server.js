@@ -163,3 +163,19 @@ app.get('/health', (req, res) => {
     timestamp: Date.now()
   });
 });
+
+const rateLimit = require('express-rate-limit');
+
+const limiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true
+});
+
+app.use(limiter);
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
