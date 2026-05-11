@@ -150,12 +150,6 @@ setInterval(() => {
  * START SERVER
  */
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-    console.log("Apple Fortune backend running on port " + PORT);
-});
-
-
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -164,6 +158,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.listen(PORT, () => {
+    console.log("Apple Fortune backend running on port " + PORT);
+});
 const rateLimit = require('express-rate-limit');
 
 const limiter = rateLimit({
