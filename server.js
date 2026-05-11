@@ -154,3 +154,12 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log("Apple Fortune backend running on port " + PORT);
 });
+
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: Date.now()
+  });
+});
