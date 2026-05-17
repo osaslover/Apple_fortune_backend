@@ -1,34 +1,44 @@
-require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
+const env = require('./config/env');
+
 const platformsRouter = require('./routes/platforms');
 const connectIdRouter = require('./routes/connectId');
 
 const app = express();
+
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// ========================
+// SECURITY MIDDLEWARE
+// ========================
 
-// Rate limiting
-const limiter = rateLimit({
+app.use(cors({
+  origin: env.CORS_ORIGIN
+}));
+
+app.use(express.json({ limit: '100kb' })); // prevent payload abuse
+
+app.use(rateLimit({
   windowMs: 60 * 1000,
   max: 120,
   standardHeaders: true,
   legacyHeaders: false
-});
+}));
 
-app.use(limiter);
+// ========================
+// MEMORY STORAGE
+// ========================
 
-// In-memory rounds storage
 const rounds = Object.create(null);
 
-// Helpers
+// ========================
+// HELPERS
+// ========================
+
 function sha256(data) {
   return crypto.createHash('sha256').update(data).digest('hex');
 }
@@ -43,20 +53,12 @@ function generateGrid(rows = 5, cols = 5) {
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const rand = Math.random();
+
       let type = 'grass';
+      if (rand < 0.18) type = 'apple';
+      else if (rand < 0.28) type = 'bad';
 
-      if (rand < 0.18) {
-        type = 'apple';
-      } else if (rand < 0.28) {
-        type = 'bad';
-      }
-
-      grid.push({
-        row,
-        col,
-        type,
-        opened: false
-      });
+      grid.push({ row, col, type, opened: false });
     }
   }
 
@@ -64,20 +66,21 @@ function generateGrid(rows = 5, cols = 5) {
 }
 
 function findCell(grid, row, col) {
-  return grid.find(
-    cell => cell.row === row && cell.col === col
-  );
+  return grid.find(c => c.row === row && c.col === col);
 }
 
-// Root endpoint
+// ========================
+// ROUTES
+// ========================
+
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    message: 'Apple Fortune Backend is running'
+    message: 'Apple Fortune Backend is running',
+    env: env.NODE_ENV
   });
 });
 
-// Health checks
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -94,15 +97,18 @@ app.get('/healthy', (req, res) => {
   });
 });
 
-// External API routes
 app.use('/api/platforms', platformsRouter);
 app.use('/api/connect-id', connectIdRouter);
 
-// Create round
+// ========================
+// CREATE ROUND
+// ========================
+
 app.post('/createRound', (req, res) => {
   try {
     const roundId = randomHex(6);
     const serverSeed = randomHex(16);
+
     const grid = generateGrid(5, 5);
 
     const commitHash = sha256(
@@ -126,6 +132,7 @@ app.post('/createRound', (req, res) => {
       commitHash,
       createdAt: rounds[roundId].createdAt
     });
+
   } catch (error) {
     console.error('createRound error:', error);
     res.status(500).json({
@@ -135,16 +142,17 @@ app.post('/createRound', (req, res) => {
   }
 });
 
-// Click cell
+// ========================
+// CLICK CELL
+// ========================
+
 app.post('/clickCell', (req, res) => {
   try {
     const { roundId, row, col } = req.body;
 
-    if (
-      typeof roundId !== 'string' ||
-      !Number.isInteger(row) ||
-      !Number.isInteger(col)
-    ) {
+    if (typeof roundId !== 'string' ||
+        !Number.isInteger(row) ||
+        !Number.isInteger(col)) {
       return res.status(400).json({
         success: false,
         error: 'roundId, row and col are required'
@@ -198,7 +206,7 @@ app.post('/clickCell', (req, res) => {
       round.finishedAt = Date.now();
     }
 
-    res.json({
+    return res.json({
       success: true,
       result,
       type: cell.type,
@@ -206,6 +214,7 @@ app.post('/clickCell', (req, res) => {
       col,
       roundStatus: round.status
     });
+
   } catch (error) {
     console.error('clickCell error:', error);
     res.status(500).json({
@@ -215,7 +224,10 @@ app.post('/clickCell', (req, res) => {
   }
 });
 
-// Reveal round
+// ========================
+// REVEAL ROUND
+// ========================
+
 app.get('/revealRound', (req, res) => {
   try {
     const { roundId } = req.query;
@@ -247,11 +259,11 @@ app.get('/revealRound', (req, res) => {
       grid: round.grid,
       serverSeed: round.serverSeed,
       commitHash: round.commitHash,
-      verified:
-        recalculatedHash === round.commitHash,
+      verified: recalculatedHash === round.commitHash,
       createdAt: round.createdAt,
       finishedAt: round.finishedAt
     });
+
   } catch (error) {
     console.error('revealRound error:', error);
     res.status(500).json({
@@ -261,7 +273,10 @@ app.get('/revealRound', (req, res) => {
   }
 });
 
-// Cleanup old rounds (30 minutes)
+// ========================
+// CLEANUP OLD ROUNDS
+// ========================
+
 setInterval(() => {
   const now = Date.now();
   const MAX_AGE = 30 * 60 * 1000;
@@ -273,13 +288,14 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-// Error handler
+// ========================
+// GLOBAL ERROR HANDLER
+// ========================
+
 app.use((err, req, res, next) => {
   console.error(err);
 
-  if (res.headersSent) {
-    return next(err);
-  }
+  if (res.headersSent) return next(err);
 
   res.status(500).json({
     success: false,
@@ -287,9 +303,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
+// ========================
+// START SERVER
+// ========================
+
+const PORT = env.PORT;
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT} (${env.NODE_ENV})`);
 });
