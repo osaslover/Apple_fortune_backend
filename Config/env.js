@@ -3,19 +3,21 @@ require('dotenv').config();
 const { z } = require('zod');
 
 const envSchema = z.object({
-  // Server
   PORT: z.coerce.number().default(3000),
+
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
     .default('development'),
 
-  // Secrets (optional for now, required if you later add JWT auth)
-  JWT_SECRET: z.string().min(20).optional(),
-  GAME_SECRET: z.string().min(20).optional(),
+  // Optional secrets; if omitted, no validation error.
+  JWT_SECRET: z.string().optional(),
+  GAME_SECRET: z.string().optional(),
 
-  // CORS
-  // Use "*" to allow all origins, which is best for your HTML file hosted anywhere.
-  CORS_ORIGIN: z.string().default('*')
+  // Allow all origins by default.
+  CORS_ORIGIN: z.string().default('*'),
+
+  // Optional database URL.
+  DATABASE_URL: z.string().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);
