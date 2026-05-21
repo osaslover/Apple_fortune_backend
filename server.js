@@ -1,9 +1,9 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-
-const env = require('./config/env');
 
 const platformsRouter = require('./routes/platforms');
 const connectIdRouter = require('./routes/connectId');
@@ -17,10 +17,12 @@ app.set('trust proxy', 1);
 // ========================
 
 app.use(cors({
-  origin: env.CORS_ORIGIN
+  origin: process.env.CORS_ORIGIN || '*'
 }));
 
-app.use(express.json({ limit: '100kb' })); // prevent payload abuse
+app.use(express.json({
+  limit: '100kb'
+}));
 
 app.use(rateLimit({
   windowMs: 60 * 1000,
@@ -40,11 +42,16 @@ const rounds = Object.create(null);
 // ========================
 
 function sha256(data) {
-  return crypto.createHash('sha256').update(data).digest('hex');
+  return crypto
+    .createHash('sha256')
+    .update(data)
+    .digest('hex');
 }
 
 function randomHex(bytes = 16) {
-  return crypto.randomBytes(bytes).toString('hex');
+  return crypto
+    .randomBytes(bytes)
+    .toString('hex');
 }
 
 function generateGrid(rows = 5, cols = 5) {
@@ -52,13 +59,23 @@ function generateGrid(rows = 5, cols = 5) {
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
+
       const rand = Math.random();
 
       let type = 'grass';
-      if (rand < 0.18) type = 'apple';
-      else if (rand < 0.28) type = 'bad';
 
-      grid.push({ row, col, type, opened: false });
+      if (rand < 0.18) {
+        type = 'apple';
+      } else if (rand < 0.28) {
+        type = 'bad';
+      }
+
+      grid.push({
+        row,
+        col,
+        type,
+        opened: false
+      });
     }
   }
 
@@ -66,7 +83,11 @@ function generateGrid(rows = 5, cols = 5) {
 }
 
 function findCell(grid, row, col) {
-  return grid.find(c => c.row === row && c.col === col);
+  return grid.find(
+    cell =>
+      cell.row === row &&
+      cell.col === col
+  );
 }
 
 // ========================
@@ -77,7 +98,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'ok',
     message: 'Apple Fortune Backend is running',
-    env: env.NODE_ENV
+    env: process.env.NODE_ENV || 'development'
   });
 });
 
@@ -97,7 +118,12 @@ app.get('/healthy', (req, res) => {
   });
 });
 
+// ========================
+// API ROUTES
+// ========================
+
 app.use('/api/platforms', platformsRouter);
+
 app.use('/api/connect-id', connectIdRouter);
 
 // ========================
@@ -106,7 +132,9 @@ app.use('/api/connect-id', connectIdRouter);
 
 app.post('/createRound', (req, res) => {
   try {
+
     const roundId = randomHex(6);
+
     const serverSeed = randomHex(16);
 
     const grid = generateGrid(5, 5);
@@ -134,7 +162,12 @@ app.post('/createRound', (req, res) => {
     });
 
   } catch (error) {
-    console.error('createRound error:', error);
+
+    console.error(
+      'createRound error:',
+      error
+    );
+
     res.status(500).json({
       success: false,
       error: 'Failed to create round'
@@ -147,15 +180,24 @@ app.post('/createRound', (req, res) => {
 // ========================
 
 app.post('/clickCell', (req, res) => {
-  try {
-    const { roundId, row, col } = req.body;
 
-    if (typeof roundId !== 'string' ||
-        !Number.isInteger(row) ||
-        !Number.isInteger(col)) {
+  try {
+
+    const {
+      roundId,
+      row,
+      col
+    } = req.body;
+
+    if (
+      typeof roundId !== 'string' ||
+      !Number.isInteger(row) ||
+      !Number.isInteger(col)
+    ) {
       return res.status(400).json({
         success: false,
-        error: 'roundId, row and col are required'
+        error:
+          'roundId, row and col are required'
       });
     }
 
@@ -171,11 +213,16 @@ app.post('/clickCell', (req, res) => {
     if (round.status !== 'active') {
       return res.status(400).json({
         success: false,
-        error: 'Round is no longer active'
+        error:
+          'Round is no longer active'
       });
     }
 
-    const cell = findCell(round.grid, row, col);
+    const cell = findCell(
+      round.grid,
+      row,
+      col
+    );
 
     if (!cell) {
       return res.status(400).json({
@@ -185,6 +232,7 @@ app.post('/clickCell', (req, res) => {
     }
 
     if (cell.opened) {
+
       return res.json({
         success: true,
         result: 'ALREADY_OPENED',
@@ -199,10 +247,15 @@ app.post('/clickCell', (req, res) => {
     let result = 'GRASS';
 
     if (cell.type === 'apple') {
+
       result = 'APPLE';
+
     } else if (cell.type === 'bad') {
+
       result = 'BAD_APPLE';
+
       round.status = 'finished';
+
       round.finishedAt = Date.now();
     }
 
@@ -216,10 +269,16 @@ app.post('/clickCell', (req, res) => {
     });
 
   } catch (error) {
-    console.error('clickCell error:', error);
+
+    console.error(
+      'clickCell error:',
+      error
+    );
+
     res.status(500).json({
       success: false,
-      error: 'Failed to process click'
+      error:
+        'Failed to process click'
     });
   }
 });
@@ -229,10 +288,13 @@ app.post('/clickCell', (req, res) => {
 // ========================
 
 app.get('/revealRound', (req, res) => {
+
   try {
+
     const { roundId } = req.query;
 
     if (!roundId) {
+
       return res.status(400).json({
         success: false,
         error: 'roundId is required'
@@ -242,6 +304,7 @@ app.get('/revealRound', (req, res) => {
     const round = rounds[roundId];
 
     if (!round) {
+
       return res.status(404).json({
         success: false,
         error: 'Round not found'
@@ -249,7 +312,8 @@ app.get('/revealRound', (req, res) => {
     }
 
     const recalculatedHash = sha256(
-      JSON.stringify(round.grid) + round.serverSeed
+      JSON.stringify(round.grid) +
+      round.serverSeed
     );
 
     res.json({
@@ -259,16 +323,24 @@ app.get('/revealRound', (req, res) => {
       grid: round.grid,
       serverSeed: round.serverSeed,
       commitHash: round.commitHash,
-      verified: recalculatedHash === round.commitHash,
+      verified:
+        recalculatedHash ===
+        round.commitHash,
       createdAt: round.createdAt,
       finishedAt: round.finishedAt
     });
 
   } catch (error) {
-    console.error('revealRound error:', error);
+
+    console.error(
+      'revealRound error:',
+      error
+    );
+
     res.status(500).json({
       success: false,
-      error: 'Failed to reveal round'
+      error:
+        'Failed to reveal round'
     });
   }
 });
@@ -278,14 +350,23 @@ app.get('/revealRound', (req, res) => {
 // ========================
 
 setInterval(() => {
+
   const now = Date.now();
-  const MAX_AGE = 30 * 60 * 1000;
+
+  const MAX_AGE =
+    30 * 60 * 1000;
 
   for (const roundId of Object.keys(rounds)) {
-    if (now - rounds[roundId].createdAt > MAX_AGE) {
+
+    if (
+      now -
+      rounds[roundId].createdAt >
+      MAX_AGE
+    ) {
       delete rounds[roundId];
     }
   }
+
 }, 60 * 1000);
 
 // ========================
@@ -293,13 +374,18 @@ setInterval(() => {
 // ========================
 
 app.use((err, req, res, next) => {
+
   console.error(err);
 
-  if (res.headersSent) return next(err);
+  if (res.headersSent) {
+    return next(err);
+  }
 
   res.status(500).json({
     success: false,
-    error: err.message || 'Internal server error'
+    error:
+      err.message ||
+      'Internal server error'
   });
 });
 
@@ -307,8 +393,17 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ========================
 
-const PORT = env.PORT;
+const PORT =
+  process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT} (${env.NODE_ENV})`);
-});
+app.listen(
+  PORT,
+  '0.0.0.0',
+  () => {
+
+    console.log(
+      `Server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`
+    );
+
+  }
+);
