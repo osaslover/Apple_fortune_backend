@@ -1,24 +1,29 @@
+// config/env.js
 require('dotenv').config();
 const { z } = require('zod');
 
 const envSchema = z.object({
+  // Server
   PORT: z.coerce.number().default(3000),
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
+    .default('development'),
 
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-
+  // Secrets (optional for now, required if you later add JWT auth)
   JWT_SECRET: z.string().min(20).optional(),
   GAME_SECRET: z.string().min(20).optional(),
 
-  // optional safety (if you want to lock CORS later)
+  // CORS
+  // Use "*" to allow all origins, which is best for your HTML file hosted anywhere.
   CORS_ORIGIN: z.string().default('*')
 });
 
-const env = envSchema.safeParse(process.env);
+const parsed = envSchema.safeParse(process.env);
 
-if (!env.success) {
+if (!parsed.success) {
   console.error('❌ Invalid environment variables');
-  console.error(env.error.flatten().fieldErrors);
+  console.error(parsed.error.flatten().fieldErrors);
   process.exit(1);
 }
 
-module.exports = env.data;
+module.exports = parsed.data;
