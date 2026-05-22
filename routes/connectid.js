@@ -1,6 +1,6 @@
 const express = require('express');
 
-const router = express.Router();
+const router = express.router();
 
 // POST /api/connect-id
 router.post('/', async (req, res) => {
