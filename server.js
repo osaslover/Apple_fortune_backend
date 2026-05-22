@@ -5,8 +5,8 @@ const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 
-const platformsRouter = require('./routes/platforms');
-const connectIdRouter = require('./routes/connectId');
+const platformsRouter = require('./Routes/platforms');
+const connectIdRouter = require('./Routes/connectId');
 
 const app = express();
 
@@ -20,9 +20,7 @@ app.use(cors({
   origin: process.env.CORS_ORIGIN || '*'
 }));
 
-app.use(express.json({
-  limit: '100kb'
-}));
+app.use(express.json({ limit: '100kb' }));
 
 app.use(rateLimit({
   windowMs: 60 * 1000,
@@ -42,16 +40,11 @@ const rounds = Object.create(null);
 // ========================
 
 function sha256(data) {
-  return crypto
-    .createHash('sha256')
-    .update(data)
-    .digest('hex');
+  return crypto.createHash('sha256').update(data).digest('hex');
 }
 
 function randomHex(bytes = 16) {
-  return crypto
-    .randomBytes(bytes)
-    .toString('hex');
+  return crypto.randomBytes(bytes).toString('hex');
 }
 
 function generateGrid(rows = 5, cols = 5) {
@@ -84,9 +77,7 @@ function generateGrid(rows = 5, cols = 5) {
 
 function findCell(grid, row, col) {
   return grid.find(
-    cell =>
-      cell.row === row &&
-      cell.col === col
+    c => c.row === row && c.col === col
   );
 }
 
@@ -118,12 +109,8 @@ app.get('/healthy', (req, res) => {
   });
 });
 
-// ========================
-// API ROUTES
-// ========================
-
+// API routes
 app.use('/api/platforms', platformsRouter);
-
 app.use('/api/connect-id', connectIdRouter);
 
 // ========================
@@ -131,6 +118,7 @@ app.use('/api/connect-id', connectIdRouter);
 // ========================
 
 app.post('/createRound', (req, res) => {
+
   try {
 
     const roundId = randomHex(6);
@@ -163,10 +151,7 @@ app.post('/createRound', (req, res) => {
 
   } catch (error) {
 
-    console.error(
-      'createRound error:',
-      error
-    );
+    console.error(error);
 
     res.status(500).json({
       success: false,
@@ -183,11 +168,7 @@ app.post('/clickCell', (req, res) => {
 
   try {
 
-    const {
-      roundId,
-      row,
-      col
-    } = req.body;
+    const { roundId, row, col } = req.body;
 
     if (
       typeof roundId !== 'string' ||
@@ -196,8 +177,7 @@ app.post('/clickCell', (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        error:
-          'roundId, row and col are required'
+        error: 'roundId, row and col are required'
       });
     }
 
@@ -213,16 +193,11 @@ app.post('/clickCell', (req, res) => {
     if (round.status !== 'active') {
       return res.status(400).json({
         success: false,
-        error:
-          'Round is no longer active'
+        error: 'Round is no longer active'
       });
     }
 
-    const cell = findCell(
-      round.grid,
-      row,
-      col
-    );
+    const cell = findCell(round.grid, row, col);
 
     if (!cell) {
       return res.status(400).json({
@@ -232,7 +207,6 @@ app.post('/clickCell', (req, res) => {
     }
 
     if (cell.opened) {
-
       return res.json({
         success: true,
         result: 'ALREADY_OPENED',
@@ -270,15 +244,11 @@ app.post('/clickCell', (req, res) => {
 
   } catch (error) {
 
-    console.error(
-      'clickCell error:',
-      error
-    );
+    console.error(error);
 
     res.status(500).json({
       success: false,
-      error:
-        'Failed to process click'
+      error: 'Failed to process click'
     });
   }
 });
@@ -294,7 +264,6 @@ app.get('/revealRound', (req, res) => {
     const { roundId } = req.query;
 
     if (!roundId) {
-
       return res.status(400).json({
         success: false,
         error: 'roundId is required'
@@ -304,7 +273,6 @@ app.get('/revealRound', (req, res) => {
     const round = rounds[roundId];
 
     if (!round) {
-
       return res.status(404).json({
         success: false,
         error: 'Round not found'
@@ -312,8 +280,7 @@ app.get('/revealRound', (req, res) => {
     }
 
     const recalculatedHash = sha256(
-      JSON.stringify(round.grid) +
-      round.serverSeed
+      JSON.stringify(round.grid) + round.serverSeed
     );
 
     res.json({
@@ -324,44 +291,36 @@ app.get('/revealRound', (req, res) => {
       serverSeed: round.serverSeed,
       commitHash: round.commitHash,
       verified:
-        recalculatedHash ===
-        round.commitHash,
+        recalculatedHash === round.commitHash,
       createdAt: round.createdAt,
       finishedAt: round.finishedAt
     });
 
   } catch (error) {
 
-    console.error(
-      'revealRound error:',
-      error
-    );
+    console.error(error);
 
     res.status(500).json({
       success: false,
-      error:
-        'Failed to reveal round'
+      error: 'Failed to reveal round'
     });
   }
 });
 
 // ========================
-// CLEANUP OLD ROUNDS
+// CLEANUP
 // ========================
 
 setInterval(() => {
 
   const now = Date.now();
 
-  const MAX_AGE =
-    30 * 60 * 1000;
+  const MAX_AGE = 30 * 60 * 1000;
 
   for (const roundId of Object.keys(rounds)) {
 
     if (
-      now -
-      rounds[roundId].createdAt >
-      MAX_AGE
+      now - rounds[roundId].createdAt > MAX_AGE
     ) {
       delete rounds[roundId];
     }
@@ -370,22 +329,16 @@ setInterval(() => {
 }, 60 * 1000);
 
 // ========================
-// GLOBAL ERROR HANDLER
+// ERROR HANDLER
 // ========================
 
 app.use((err, req, res, next) => {
 
   console.error(err);
 
-  if (res.headersSent) {
-    return next(err);
-  }
-
   res.status(500).json({
     success: false,
-    error:
-      err.message ||
-      'Internal server error'
+    error: err.message || 'Internal server error'
   });
 });
 
@@ -393,17 +346,11 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ========================
 
-const PORT =
-  process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-app.listen(
-  PORT,
-  '0.0.0.0',
-  () => {
+app.listen(PORT, '0.0.0.0', () => {
 
-    console.log(
-      `Server running on port ${PORT} (${process.env.NODE_ENV || 'development'})`
-    );
-
-  }
-);
+  console.log(
+    `Server running on port ${PORT}`
+  );
+});
