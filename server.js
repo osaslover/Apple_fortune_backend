@@ -4,7 +4,6 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
-
 const platformsRouter = require('./Routes/platforms');
 const connectIdRouter = require('./Routes/connectId');
 
